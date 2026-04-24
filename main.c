@@ -2,31 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
-MAIN:
-./cm --role {inspector/manager} --user {name} --{add, removeReport, list, view, updateThreshold, filter} {args}
-
-if new district, create directory
-each directory:
-    reports.dat {saves: reportId, userName, cords, issueCategory, severity, timestamp, description}
-    district.cfg {minimum lvl that triggers an alert}
-    loggedDistrict {record every action in that district, timestamps, role, username}
-
-add:    input: districtId
-        usage: append new report
-        who: both roles
-
-remove: input: districtId, reportId
-
-list:   input: districtId
-
-view:   input: districtId, reportId
-
-update: input: districtId, value
-
-filter: input: districtId, condition
-*/
-
 typedef struct args{
     char role[10];
     char name[50];
@@ -34,7 +9,7 @@ typedef struct args{
     int districtId;
     int reportId;
     int value;
-    //char condition[][]; //matrice bidimensionala, trebuie sa initializez fiecare rand cu \0
+    char condition[10][128];
     int conditionCtr;
 }args;
 
@@ -47,7 +22,9 @@ void init(){
     input.districtId = -1;
     input.reportId = -1;
     input.value = -1;
-    //input.condition[0] = '\0'; //!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    for(int i = 0; i < 10; i++){
+        input.condition[i][0] = '\0';
+    }
     input.conditionCtr = 0;
 }
 
@@ -55,7 +32,7 @@ int outOfBounds(int i, int argc){
     return i >= argc;
 }
 
-void arguments(int argc, char* argv){
+void readArguments(int argc, char* argv[]){
     init();
     int roleExists = 0;
     int userExists = 0;
@@ -65,49 +42,89 @@ void arguments(int argc, char* argv){
         if((strcmp(argv[i], "--role") == 0) && !outOfBounds(i + 1, argc)){
             strcpy(input.role, argv[i + 1]);
             roleExists = 1;
+            i++;
         }
         if((strcmp(argv[i], "--user") == 0) && !outOfBounds(i + 1, argc)){
             strcpy(input.name, argv[i + 1]);
             userExists = 1;
+            i++;
         }
         if((strcmp(argv[i], "--add") == 0) && !outOfBounds(i + 1, argc)){
             strcpy(input.op, "add");
             strcpy(input.districtId, argv[i + 1]);
-            int functionExists = 1;
+            functionExists = 1;
+            i++;
         }
         if((strcmp(argv[i], "--removeReport") == 0) && !outOfBounds(i + 1, argc) && !outOfBounds(i + 2, argc)){
             strcpy(input.op, "remove");
             strcpy(input.districtId, argv[i + 1]);
             strcpy(input.reportId, argv[i + 2]);
-            int functionExists = 1;
+            functionExists = 1;
+            i +=2;
         }
         if((strcmp(argv[i], "--list") == 0) && !outOfBounds(i + 1, argc)){
             strcpy(input.op, "list");
             strcpy(input.districtId, argv[i + 1]);
-            int functionExists = 1;
+            functionExists = 1;
+            i++;
         }
-        if((strcmp(argv[i], "--view") == 0) && !outOfBounds(i + 1, argc)){
+        if((strcmp(argv[i], "--view") == 0) && !outOfBounds(i + 1, argc) && !outOfBounds(i + 2, argc)){
             strcpy(input.op, "view");
             strcpy(input.districtId, argv[i + 1]);
             strcpy(input.reportId, argv[i + 2]);
-            int functionExists = 1;
+            functionExists = 1;
+            i +=2;
         }
-        if((strcmp(argv[i], "--updateThreshold") == 0) && !outOfBounds(i + 1, argc)){
+        if((strcmp(argv[i], "--updateThreshold") == 0) && !outOfBounds(i + 1, argc) && !outOfBounds(i + 2, argc)){
             strcpy(input.op, "update");
             strcpy(input.districtId, argv[i + 1]);
             strcpy(input.value, argv[i + 2]);
-            int functionExists = 1;
+            functionExists = 1;
+            i++;
         }
         if((strcmp(argv[i], "--filter") == 0) && !outOfBounds(i + 1, argc)){
-            //moartea caprioarei, trebui sa gasesc args num si sa scriu in bimatrix fiecare arg
-            int functionExists = 1;
-        }
-
-        if(roleExists + userExists + functionExists != 3){
-            fprintf(stderr, "Failed to read, wrong args");
-            exit(1);
+            strcpy(input.op, "filter");
+            strcpy(input.districtId, argv[i + 1]);
+            
+            i += 2;
+            
+            while(!outOfBounds(i, argc) && strncmp(argv[i], "--", 2) != 0){
+                strcpy(input.condition[input.conditionCtr], argv[i]);
+                i++;
+                input.conditionCtr++;
+            }
+            i--;
+            functionExists = 1;
         }
     }
+    if(roleExists + userExists + functionExists != 3){
+            fprintf(stderr, "Failed to read, wrong args");
+            exit(1);
+    }
+}
+
+void addRep(){
+
+}
+
+void removeRep(){
+
+}
+
+void listRep(){
+
+}
+
+void viewRep(){
+
+}
+
+void updateRep(){
+
+}
+
+void filterRep(){
+
 }
 
 int main(int argc, char* argv[]){
@@ -116,6 +133,21 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
+    readArguments(argc, argv);
 
+    if(strcmp(input.op, "add") == 0){
+        addRep();
+    } else if(strcmp(input.op, "remove") == 0){
+        removeRep();
+    } else if(strcmp(input.op, "list") == 0){
+        listRep();
+    } else if(strcmp(input.op, "view") == 0){
+        viewRep();
+    } else if(strcmp(input.op, "update") == 0){
+        updateRep();
+    } else if(strcmp(input.op, "filter") == 0){
+        filterRep();
+    }
+    
     return 0;
 }
