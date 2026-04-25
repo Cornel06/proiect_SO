@@ -4,6 +4,7 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 typedef struct args{
     char role[16];
@@ -118,17 +119,15 @@ int ctrReports(){
     char path[128];
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
 
-    FILE* f = fopen(path, "rb");
-    if(f == NULL){
+    int f = open(path, O_RDONLY);
+    if(f == -1){
         return 0;
     }
 
-    fseek(f, 0, SEEK_END);
+    off_t totalBytes = lseek(f, 0, SEEK_END);
+    close(f);
 
-    long totalBytes = ftell(f);
-    fclose(f);
-
-    return (int)(totalBytes/sizeof(report));
+    return (int)(totalBytes / sizeof(report));
 }
 
 int checkPermission(const char* path, int requiresWrite) {
@@ -153,6 +152,19 @@ int checkPermission(const char* path, int requiresWrite) {
         }
     }
     return 0;
+}
+
+void permissionBitsSymbols(mode_t mode, char* str){
+    str[0] = (mode & S_IRUSR) ? 'r' : '-';
+    str[1] = (mode & S_IWUSR) ? 'w' : '-';
+    str[2] = (mode & S_IXUSR) ? 'x' : '-';
+    str[3] = (mode & S_IRGRP) ? 'r' : '-';
+    str[4] = (mode & S_IWGRP) ? 'w' : '-';
+    str[5] = (mode & S_IXGRP) ? 'x' : '-';
+    str[6] = (mode & S_IROTH) ? 'r' : '-';
+    str[7] = (mode & S_IWOTH) ? 'w' : '-';
+    str[8] = (mode & S_IXOTH) ? 'x' : '-';
+    str[9] = '\0'; 
 }
 
 void addRep(){
@@ -199,7 +211,7 @@ void addRep(){
 
     printf("Severity (1/2/3): ");
     scanf("%d", &severity);
-    if(severity < 1 || severity > 4){
+    if(severity < 1 || severity > 3){
         fprintf(stderr, "Invalid severity\n");
         return;
     }
@@ -273,11 +285,46 @@ void removeRep(){
 }
 
 void listRep(){
-
+    
 }
 
 void viewRep(){
+    char path[128];
+    snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
 
+    if(!checkPermission(path, 0)){
+        fprintf(stderr, "Acces denied!\n");
+        exit(1);
+    }
+
+    int f = open(path, O_RDONLY);
+    if(f == -1){
+        fprintf(stderr, "Could not open reports.dat file\n");
+        return;
+    }
+
+    report currReport;
+    int reportExists = 0;
+
+    while(read(f, &currReport, sizeof(report)) == sizeof(report)){
+        if(currReport.reportId == input.reportId){
+            reportExists = 1;
+            printf("\n---REPORT NO #%d DETAILS---\n", currReport.reportId);
+            printf("Inspector: %s\n", currReport.name);
+            printf("Category: %s\n", currReport.category);
+            printf("Severity: %d\n", currReport.severity);
+            printf("Coordonates: X: %.2f, Y: %.2f\n", currReport.xCords, currReport.yCords);
+            printf("Description: %s\n", currReport.description);
+            printf("Date Logged: %s", ctime(&currReport.timestamp));
+            printf("---------------------------\n");
+            break;
+        }
+    }
+
+    if(!reportExists){
+        fprintf(stderr, "Could not find the report you are looking for\n");
+    }
+    close(f);
 }
 
 void updateRep(){
