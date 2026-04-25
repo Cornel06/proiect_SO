@@ -131,7 +131,44 @@ int ctrReports(){
     return (int)(totalBytes/sizeof(report));
 }
 
+int checkPermission(const char* path, int requiresWrite) {
+    struct stat fileStat;
+    
+    if (stat(path, &fileStat) == -1) {
+        return 1; 
+    }
+
+    if (strcmp(input.role, "manager") == 0) {
+        if (requiresWrite){
+            return (fileStat.st_mode & S_IWUSR) ? 1 : 0;  
+        } else{
+            return (fileStat.st_mode & S_IRUSR) ? 1 : 0;
+        }
+    } 
+    else if (strcmp(input.role, "inspector") == 0) {
+        if (requiresWrite){ 
+            return (fileStat.st_mode & S_IWGRP) ? 1 : 0;
+        } else{
+            return (fileStat.st_mode & S_IRGRP) ? 1 : 0;
+        }
+    }
+    return 0;
+}
+
 void addRep(){
+    char path[128];
+
+    snprintf(path, sizeof(path), "%s", input.districtId);
+    struct stat st_dir = {0};
+    
+    if(stat(path, &st_dir) == -1){
+        if(mkdir(path, 0750) != 0){
+            fprintf(stderr, "Failed to create directory\n");
+            exit(1);
+        }
+        chmod(path, 0750);
+    }
+
     report newReport;
     float xCords = 0;
     float yCords = 0;
@@ -140,7 +177,7 @@ void addRep(){
     newReport.reportId = reportCount + 1;
     strcpy(newReport.name, input.name);
     
-    printf("Coordonates?\nX: ");
+    printf("Coordonates:\nX: ");
     scanf("%f", &xCords);
     printf("Y: ");
     scanf("%f", &yCords);
@@ -163,32 +200,28 @@ void addRep(){
     printf("Severity (1/2/3): ");
     scanf("%d", &severity);
     if(severity < 1 || severity > 4){
+        fprintf(stderr, "Invalid severity\n");
         return;
     }
+    newReport.severity = severity;
 
     char desc[128];
     printf("Description: ");
-    scanf("%[^\n]", desc);
+    scanf(" %[^\n]", desc);
     strcpy(newReport.description, desc);
 
     time_t timestamp = time(NULL);
     newReport.timestamp = timestamp;
 
-    char path[128];
-
-    snprintf(path, sizeof(path), "%s", input.districtId);
-    struct stat st_dir = {0};
-    
-    if(stat(path, &st_dir) == -1){
-        if(mkdir(path, 0750) != 0){
-            fprintf(stderr, "Failed to create directory\n");
-            exit(1);
-        }
-    }
-    
     FILE* f;
 
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
+    
+    if(!checkPermission(path, 1)){
+        fprintf(stderr, "Access denied!\n");
+        exit(1);
+    }
+
     f = fopen(path, "ab");
     if(f != NULL){
         fwrite(&newReport, sizeof(report), 1, f);
@@ -197,25 +230,41 @@ void addRep(){
         fprintf(stderr, "Failed reports.dat\n");
         exit(1);
     }
+
     if(reportCount == 0){
         snprintf(path, sizeof(path), "%s/district.cfg", input.districtId);
         f = fopen(path, "w");
         if(f != NULL){
             fprintf(f, "%d", 3);
             fclose(f);
+            chmod(path, 0640);
         } else{
             fprintf(stderr, "Failed district.cfg\n");
             exit(1);
         }
     }
-    snprintf(path, sizeof(path), "%s/logged_district", input.districtId);
-    f = fopen(path, "a");
-    if(f != NULL){
-        fprintf(f, "%lld || %s || %s", (long long)timestamp, input.role, input.name);
-        fclose(f);
-    } else{
-        fprintf(stderr, "Failed logged_district\n");
-        exit(1);
+
+    if(strcmp(input.role, "manager") == 0){
+        snprintf(path, sizeof(path), "%s/logged_district", input.districtId);
+        if(!checkPermission(path, 1)){
+            fprintf(stderr, "Cannot write in log, lack of permission\n");
+        } else{
+            f = fopen(path, "a");
+            if(f != NULL){
+                fprintf(f, "%lld || %s || %s\n", (long long)timestamp, input.role, input.name);
+                fclose(f);
+            } else{
+                fprintf(stderr, "Failed logged_district\n");
+                exit(1);
+            }
+        }
+    }
+
+    snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
+    chmod(path, 0664);
+    if(strcmp(input.role, "manager") == 0){
+        snprintf(path, sizeof(path), "%s/logged_district", input.districtId);
+        chmod(path, 0644);
     }
 }
 
@@ -265,6 +314,5 @@ int main(int argc, char* argv[]){
 
     detectAndExecute();
     
-    printf("%s %s %s %s\n", input.role, input.name, input.op, input.districtId);
     return 0;
 }
