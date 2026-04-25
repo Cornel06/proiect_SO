@@ -114,41 +114,104 @@ typedef struct report{
     char description[128];
 }report;
 
+int ctrReports(){
+    char path[128];
+    snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
+
+    FILE* f = fopen(path, "rb");
+    if(f == NULL){
+        return 0;
+    }
+
+    fseek(f, 0, SEEK_END);
+
+    long totalBytes = ftell(f);
+    fclose(f);
+
+    return (int)(totalBytes/sizeof(report));
+}
+
 void addRep(){
-    char path[64];
+    report newReport;
+    float xCords = 0;
+    float yCords = 0;
+    int reportCount = ctrReports();
+
+    newReport.reportId = reportCount + 1;
+    strcpy(newReport.name, input.name);
+    
+    printf("Coordonates?\nX: ");
+    scanf("%f", &xCords);
+    printf("Y: ");
+    scanf("%f", &yCords);
+    
+    newReport.xCords = xCords;
+    newReport.yCords = yCords;
+    
+    char category[32];
+
+    printf("Category (road/lighting/flooding/other): ");
+    scanf("%s", category);
+
+    if(strcmp(category, "road") != 0 && strcmp(category, "lighting") != 0 && strcmp(category, "flooding") != 0){
+        strcpy(newReport.category, "other");
+    } else{
+        strcpy(newReport.category, category);
+    }
+    int severity = 0;
+
+    printf("Severity (1/2/3): ");
+    scanf("%d", &severity);
+    if(severity < 1 || severity > 4){
+        return;
+    }
+
+    char desc[128];
+    printf("Description: ");
+    scanf("%[^\n]", desc);
+    strcpy(newReport.description, desc);
+
+    time_t timestamp = time(NULL);
+    newReport.timestamp = timestamp;
+
+    char path[128];
+
     snprintf(path, sizeof(path), "%s", input.districtId);
     struct stat st_dir = {0};
     
     if(stat(path, &st_dir) == -1){
         if(mkdir(path, 0750) != 0){
-            fprintfn(stderr, "Failed to create directory\n");
+            fprintf(stderr, "Failed to create directory\n");
             exit(1);
         }
     }
-
+    
     FILE* f;
 
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
     f = fopen(path, "ab");
     if(f != NULL){
+        fwrite(&newReport, sizeof(report), 1, f);
         fclose(f);
     } else{
         fprintf(stderr, "Failed reports.dat\n");
         exit(1);
     }
-
-    snprintf(path, sizeof(path), "%s/district.cfg", input.districtId);
-    f = fopen(path, "a");
-    if(f != NULL){
-        fclose(f);
-    } else{
-        fprintf(stderr, "Failed district.cfg\n");
-        exit(1);
+    if(reportCount == 0){
+        snprintf(path, sizeof(path), "%s/district.cfg", input.districtId);
+        f = fopen(path, "w");
+        if(f != NULL){
+            fprintf(f, "%d", 3);
+            fclose(f);
+        } else{
+            fprintf(stderr, "Failed district.cfg\n");
+            exit(1);
+        }
     }
-
     snprintf(path, sizeof(path), "%s/logged_district", input.districtId);
     f = fopen(path, "a");
     if(f != NULL){
+        fprintf(f, "%lld || %s || %s", (long long)timestamp, input.role, input.name);
         fclose(f);
     } else{
         fprintf(stderr, "Failed logged_district\n");
@@ -202,6 +265,6 @@ int main(int argc, char* argv[]){
 
     detectAndExecute();
     
-    //printf("%s %s %s %s\n", input.role, input.name, input.op, input.districtId);
+    printf("%s %s %s %s\n", input.role, input.name, input.op, input.districtId);
     return 0;
 }
