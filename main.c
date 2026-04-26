@@ -80,7 +80,13 @@ void readArguments(int argc, char* argv[]){
         } else if((strcmp(argv[i], "--updateThreshold") == 0) && !outOfBounds(i + 1, argc) && !outOfBounds(i + 2, argc)){
             strcpy(input.op, "update");
             strcpy(input.districtId, argv[i + 1]);
+            int val = atoi(argv[i + 2]);
+            if(val < 1 || val > 3){
+                fprintf(stderr, "Value out of bounds\n");
+                exit(1);
+            }
             input.value = atoi(argv[i + 2]);
+
             functionExists = 1;
             i += 2;
         } else if((strcmp(argv[i], "--filter") == 0) && !outOfBounds(i + 1, argc)){
@@ -99,7 +105,7 @@ void readArguments(int argc, char* argv[]){
         }
     }
     if(roleExists + userExists + functionExists != 3){
-            fprintf(stderr, "Failed to read, wrong args");
+            fprintf(stderr, "Failed to read, wrong args\n");
             exit(1);
     }
 }
@@ -281,7 +287,7 @@ void addRep(){
 }
 
 void removeRep(){
-
+    
 }
 
 void listRep(){
@@ -293,18 +299,18 @@ void listRep(){
         exit(1);
     }
 
-    struct stat fSt;
-    if(stat(path, &fSt) == -1){
+    struct stat st;
+    if(stat(path, &st) == -1){
         printf("No reports\n");
         return;
     }
     
     char permissionBits[10];
-    permissionBitsSymbols(fSt.st_mode, permissionBits);
+    permissionBitsSymbols(st.st_mode, permissionBits);
     printf("--- DISTRIC %s FILE INFO ---\n", input.districtId);
     printf("Permissions:        %s\n", permissionBits);
-    printf("File Size:          %lld bytes\n", (long long)fSt.st_size);
-    printf("Last Modified:      %s", ctime(&fSt.st_mtime));
+    printf("File Size:          %lld bytes\n", (long long)st.st_size);
+    printf("Last Modified:      %s", ctime(&st.st_mtime));
     printf("----------------------------------------------------------\n");
     
     int f = open(path, O_RDONLY);
@@ -370,7 +376,43 @@ void viewRep(){
 }
 
 void updateRep(){
+    if(strcmp(input.role, "manager") != 0){
+        fprintf(stderr, "Access denied!\n");
+        exit(1);
+    }
 
+    char path[128];
+    snprintf(path, sizeof(path), "%s/district.cfg", input.districtId);
+
+    if(!checkPermission(path, 1)){
+        fprintf(stderr, "Access denied!\n");
+        exit(1);
+    }
+
+    struct stat st;
+    if(stat(path, &st) == -1){
+        fprintf(stderr, "File doesn't exist\n");
+        exit(1);
+    }
+
+    mode_t permission = st.st_mode & 0777;
+
+    if(permission != 0640){
+        fprintf(stderr, "File permissions have been tampered with!\nExpected:   640\nFound:      %03o\n", permission);
+        exit(1);
+    }
+
+    int f = open(path, O_WRONLY | O_TRUNC);
+    if(f == -1){
+        fprintf(stderr, "Failed to open file\n");
+        exit(1);
+    }
+
+    char buffer[32];
+    int len = snprintf(buffer, sizeof(buffer), "%d\n", input.value);
+
+    write(f, buffer, len);
+    close(f);
 }
 
 void filterRep(){
