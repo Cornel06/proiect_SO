@@ -285,7 +285,49 @@ void removeRep(){
 }
 
 void listRep(){
+    char path[128];
+    snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
     
+    if(!checkPermission(path, 0)){
+        fprintf(stderr, "Access deined!\n");
+        exit(1);
+    }
+
+    struct stat fSt;
+    if(stat(path, &fSt) == -1){
+        printf("No reports\n");
+        return;
+    }
+    
+    char permissionBits[10];
+    permissionBitsSymbols(fSt.st_mode, permissionBits);
+    printf("--- DISTRIC %s FILE INFO ---\n", input.districtId);
+    printf("Permissions:        %s\n", permissionBits);
+    printf("File Size:          %lld bytes\n", (long long)fSt.st_size);
+    printf("Last Modified:      %s", ctime(&fSt.st_mtime));
+    printf("----------------------------------------------------------\n");
+    
+    int f = open(path, O_RDONLY);
+    if(f == -1){
+        fprintf(stderr, "Failed to open file\n");
+        return;
+    }
+
+    report currReport;
+    int ctr = 0;
+    printf("ID | Inspector          | Category   | Sev | Coordinates\n");
+    printf("----------------------------------------------------------\n");
+    
+    while(read(f, &currReport, sizeof(report)) == sizeof(report)){
+        ctr++;
+        printf("%-2d | %-18s | %-10s | %-3d | X: %.2f, Y: %.2f\n", currReport.reportId, currReport.name, currReport.category, currReport.severity, currReport.xCords, currReport.yCords);
+    }
+
+    if(ctr == 0){
+        printf("File is empty\n");
+    }
+    printf("----------------------------------------------------------\n");
+    close(f);
 }
 
 void viewRep(){
@@ -310,12 +352,12 @@ void viewRep(){
         if(currReport.reportId == input.reportId){
             reportExists = 1;
             printf("\n---REPORT NO #%d DETAILS---\n", currReport.reportId);
-            printf("Inspector: %s\n", currReport.name);
-            printf("Category: %s\n", currReport.category);
-            printf("Severity: %d\n", currReport.severity);
-            printf("Coordonates: X: %.2f, Y: %.2f\n", currReport.xCords, currReport.yCords);
-            printf("Description: %s\n", currReport.description);
-            printf("Date Logged: %s", ctime(&currReport.timestamp));
+            printf("Inspector:      %s\n", currReport.name);
+            printf("Category:       %s\n", currReport.category);
+            printf("Severity:       %d\n", currReport.severity);
+            printf("Coordonates:X:  %.2f, Y: %.2f\n", currReport.xCords, currReport.yCords);
+            printf("Description:    %s\n", currReport.description);
+            printf("Date Logged:    %s", ctime(&currReport.timestamp));
             printf("---------------------------\n");
             break;
         }
