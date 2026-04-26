@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-
+#define CONDITIONS 16
 typedef struct args{
     char role[16];
     char name[64];
@@ -13,7 +13,7 @@ typedef struct args{
     char districtId[64];
     int reportId;
     int value;
-    char condition[16][128];
+    char condition[CONDITIONS][128];
     int conditionCtr;
 }args;
 
@@ -26,7 +26,7 @@ void init(){
     input.districtId[0] = '\0';
     input.reportId = -1;
     input.value = -1;
-    for(int i = 0; i < 16; i++){
+    for(int i = 0; i < CONDITIONS; i++){
         input.condition[i][0] = '\0';
     }
     input.conditionCtr = 0;
@@ -60,7 +60,7 @@ void readArguments(int argc, char* argv[]){
             strcpy(input.districtId, argv[i + 1]);
             functionExists = 1;
             i++;
-        } else if((strcmp(argv[i], "--removeReport") == 0) && !outOfBounds(i + 1, argc) && !outOfBounds(i + 2, argc)){
+        } else if((strcmp(argv[i], "--remove_report") == 0) && !outOfBounds(i + 1, argc) && !outOfBounds(i + 2, argc)){
             strcpy(input.op, "remove");
             strcpy(input.districtId, argv[i + 1]);
             input.reportId = atoi(argv[i + 2]);
@@ -77,7 +77,7 @@ void readArguments(int argc, char* argv[]){
             input.reportId = atoi(argv[i + 2]);
             functionExists = 1;
             i +=2;
-        } else if((strcmp(argv[i], "--updateThreshold") == 0) && !outOfBounds(i + 1, argc) && !outOfBounds(i + 2, argc)){
+        } else if((strcmp(argv[i], "--update_threshold") == 0) && !outOfBounds(i + 1, argc) && !outOfBounds(i + 2, argc)){
             strcpy(input.op, "update");
             strcpy(input.districtId, argv[i + 1]);
             int val = atoi(argv[i + 2]);
@@ -96,6 +96,10 @@ void readArguments(int argc, char* argv[]){
             i += 2;
             
             while(!outOfBounds(i, argc) && strncmp(argv[i], "--", 2) != 0){
+                if (input.conditionCtr >= CONDITIONS) {
+                    fprintf(stderr, "Too many conditions!\n");
+                    exit(1);
+                }
                 strcpy(input.condition[input.conditionCtr], argv[i]);
                 i++;
                 input.conditionCtr++;
@@ -203,6 +207,22 @@ void permissionBitsSymbols(mode_t mode, char* str){
     str[9] = '\0'; 
 }
 
+void checkDanglingLink(){
+    char linkPath[128];
+    snprintf(linkPath, sizeof(linkPath), "active_reports-%s", input.districtId);
+
+    struct stat linkStat;
+
+    if(lstat(linkPath, &linkStat) == 0){
+        if(S_ISLNK(linkStat.st_mode)){
+            struct stat targetStat;
+            if(stat(linkPath, &targetStat) == -1){
+                fprintf(stderr, "Warning, '%s' is dangling!\n", linkPath);
+            }
+        }
+    }
+}
+
 void addRep(){
     char path[128];
 
@@ -225,7 +245,7 @@ void addRep(){
     newReport.reportId = reportCount + 1;
     strcpy(newReport.name, input.name);
     
-    printf("Coordonates:\nX: ");
+    printf("Coordinates:\nX: ");
     scanf("%f", &xCords);
     printf("Y: ");
     scanf("%f", &yCords);
@@ -289,6 +309,17 @@ void addRep(){
         } else{
             fprintf(stderr, "Failed district.cfg\n");
             exit(1);
+        }
+    }
+
+    struct stat linkStat;
+    char linkPath[128];
+    snprintf(linkPath, sizeof(linkPath), "active_reports-%s", input.districtId);
+    
+    if(lstat(linkPath, &linkStat) == -1){
+        snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
+        if(symlink(path, linkPath) != 0){
+            fprintf(stderr, "Failed to create symlink\n");
         }
     }
 
@@ -368,11 +399,12 @@ void removeRep(){
 }
 
 void listRep(){
+    checkDanglingLink();
     char path[128];
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
     
     if(!checkPermission(path, 0)){
-        fprintf(stderr, "Access deined!\n");
+        fprintf(stderr, "Access denied!\n");
         exit(1);
     }
 
@@ -415,11 +447,12 @@ void listRep(){
 }
 
 void viewRep(){
+    checkDanglingLink();
     char path[128];
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
 
     if(!checkPermission(path, 0)){
-        fprintf(stderr, "Acces denied!\n");
+        fprintf(stderr, "Access denied!\n");
         exit(1);
     }
 
@@ -439,7 +472,7 @@ void viewRep(){
             printf("Inspector:      %s\n", currReport.name);
             printf("Category:       %s\n", currReport.category);
             printf("Severity:       %d\n", currReport.severity);
-            printf("Coordonates:    X: %.2f, Y: %.2f\n", currReport.xCords, currReport.yCords);
+            printf("Coordinates:    X: %.2f, Y: %.2f\n", currReport.xCords, currReport.yCords);
             printf("Description:    %s\n", currReport.description);
             printf("Date Logged:    %s", ctime(&currReport.timestamp));
             printf("---------------------------\n");
@@ -571,7 +604,59 @@ int matchCondition(report* r, const char* field, const char* op, const char* val
 }
 
 void filterRep(){
+    checkDanglingLink();
+    char path[128];
+    snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
 
+    if(!checkPermission(path, 0)){
+        fprintf(stderr, "Access denied!\n");
+        exit(1);
+    }
+
+    int f = open(path, O_RDONLY);
+    if(f == -1){
+        fprintf(stderr, "Failed to open file\n");
+        exit(1);
+    }
+
+    report r;
+    int exist = 0;
+    
+    printf("ID | Inspector          | Category   | Sev | Coordinates\n");
+    printf("----------------------------------------------------------\n");
+
+    while(read(f, &r, sizeof(report)) == sizeof(report)){
+        int invalid = 0;
+        for(int i = 0; i < input.conditionCtr; i++){
+            char field[32];
+            char op[4];
+            char value[64];
+            
+            if(!parseCondition(input.condition[i], field, op, value)){
+                fprintf(stderr, "Could not read conditions\n");
+                invalid = 1;
+                break;
+            }
+            
+            if(!matchCondition(&r, field, op, value)){
+                invalid = 1;
+                break;
+            }
+        }
+        if(!invalid){
+            exist++;
+            printf("%-2d | %-18s | %-10s | %-3d | X: %.2f, Y: %.2f\n", r.reportId, r.name, r.category, r.severity, r.xCords, r.yCords);
+        }
+    }
+
+    if(exist == 0){
+        printf("No matches\n");
+    }
+
+    printf("----------------------------------------------------------\n");
+    close(f);
+    
+    logReports("Filtered Reports");
 }
 
 void detectAndExecute(){

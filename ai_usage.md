@@ -1,4 +1,4 @@
-# proiect_SO
+# proiect_SO CITY MANAGER
 
 Here i will write my AI usage report for the Phase 1 of the cityManager project.
 
@@ -6,7 +6,7 @@ Here i will write my AI usage report for the Phase 1 of the cityManager project.
     Google Gemini
 
 --Where did AI help me:
-    Besides the given task to use AI as a tool to help us implement the filter functions, I also asked Gemini to explain to me the usage of different libraries/functions, to make me understand system calls and directory/file management as well as help pointing out bugs or logic issues in my code. 
+    Besides the given task to use AI as a tool to help us implement the filter functions, I also asked Gemini to explain to me the usage of different libraries/functions, to make me understand system calls directory/file management and symlinks logic and debug as well as help pointing out bugs or logic issues in my code. 
 
 --How did I use AI for parseCondition() and matchCondition():
     Prompt: I am implementing a project that stores reports on different issues. Using the command:
@@ -68,9 +68,11 @@ Here i will write my AI usage report for the Phase 1 of the cityManager project.
     After that generate the function int mathCondition(report* r, const cahr* field, const char* op, const char* value) which returns 1 if the record satisfies the condition, 0 otherwise.
     Please explain how everything actually works.
 
---AI responses:
-    Besides giving me the actual code I used and commenting most lines, Gemini gave me the safer option, comparing sscanf with looping and using strtok and explained what each symbol in sscanf meant.
-
---Issues that AI helped me solve:
+--AI response:
+    Besides giving me the actual code I used and commenting lines for explanation, Gemini gave me the safer option, comparing sscanf with looping and using strtok, explained what sscanf is and what each symbol in sscanf meant.
 
 --Learning Experience:
+    -How to use most system calls and binary file operations like open()/close(), read()/write(), stat(), lseek(), mkdir(), chmod();
+    -The usage of sscanf();
+    -The operators problem shell, when operators like '<' and '>' where used as stream redirecting instead of being read as operators; 
+    -How does symlink actually work, the logic behind it and how to implement. 
