@@ -130,10 +130,16 @@ int ctrReports(){
         return 0;
     }
 
-    off_t totalBytes = lseek(f, 0, SEEK_END);
+    off_t offset = lseek(f, -sizeof(report), SEEK_END);
+    if(offset < 0){
+        close(f);
+        return 0;
+    }
+    report lastReport;
+    read(f, &lastReport, sizeof(report));
     close(f);
 
-    return (int)(totalBytes / sizeof(report));
+    return lastReport.reportId;
 }
 
 int checkPermission(const char* path, int requiresWrite) {
@@ -269,7 +275,7 @@ void addRep(){
         } else{
             f = fopen(path, "a");
             if(f != NULL){
-                fprintf(f, "%lld || %s || %s\n", (long long)timestamp, input.role, input.name);
+                fprintf(f, "%lld || %s || %s || Added Report #%d\n", (long long)timestamp, input.role, input.name, newReport.reportId);
                 fclose(f);
             } else{
                 fprintf(stderr, "Failed logged_district\n");
@@ -287,7 +293,70 @@ void addRep(){
 }
 
 void removeRep(){
-    
+    if(strcmp(input.role, "manager") != 0){
+        fprintf(stderr, "Access denied!\n");
+        exit(1);
+    }
+
+    char path[128];
+    snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
+
+    if(!checkPermission(path, 1)){
+        fprintf(stderr, "Access denied!\n");
+        exit(1);
+    }
+
+    int f = open(path, O_RDWR);
+    if(f == -1){
+        fprintf(stderr, "Failed to open file\n");
+        exit(1);
+    }
+
+    report curr;
+    int reportExists = 0;
+    off_t readCursor = 0;
+    off_t writeCursor = 0;
+
+    while(read(f, &curr, sizeof(report)) == sizeof(report)){
+        if(curr.reportId == input.reportId){
+            reportExists = 1;
+            writeCursor = lseek(f, 0, SEEK_CUR) - sizeof(report);
+            readCursor = lseek(f, 0, SEEK_CUR);
+            break;
+        }
+    }
+
+    if(!reportExists){
+        fprintf(stderr, "Report not found\n");
+        exit(1);
+    }
+
+    while(1){
+        lseek(f, readCursor, SEEK_SET);
+        if(read(f, &curr, sizeof(report)) != sizeof(report)){
+            break;
+        }
+
+        lseek(f, writeCursor, SEEK_SET);
+        write(f, &curr, sizeof(report));
+
+        readCursor += sizeof(report);
+        writeCursor += sizeof(report);
+    }
+
+    if(ftruncate(f, writeCursor) != 0){
+        fprintf(stderr, "Failed to truncate file\n");
+    }
+
+    close(f);
+
+    snprintf(path, sizeof(path), "%s/logged_district", input.districtId);
+    FILE* log = fopen(path, "a");
+    if(log != NULL){
+        fprintf(log, "%lld || %s || %s || Removed Report #%d\n", (long long)time(NULL), input.role, input.name, input.reportId);
+        fclose(log);
+    }
+
 }
 
 void listRep(){
