@@ -121,27 +121,6 @@ typedef struct report{
     char description[128];
 }report;
 
-int ctrReports(){
-    char path[128];
-    snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
-
-    int f = open(path, O_RDONLY);
-    if(f == -1){
-        return 0;
-    }
-
-    off_t offset = lseek(f, -sizeof(report), SEEK_END);
-    if(offset < 0){
-        close(f);
-        return 0;
-    }
-    report lastReport;
-    read(f, &lastReport, sizeof(report));
-    close(f);
-
-    return lastReport.reportId;
-}
-
 int checkPermission(const char* path, int requiresWrite) {
     struct stat fileStat;
     
@@ -164,6 +143,51 @@ int checkPermission(const char* path, int requiresWrite) {
         }
     }
     return 0;
+}
+
+void logReports(char* action){
+    if(strcmp(input.role, "manager") != 0){
+        return;
+    }
+
+    char path[128];
+    snprintf(path, sizeof(path), "%s/logged_district", input.districtId);
+
+    if(!checkPermission(path, 1)){
+        return;
+    }
+
+    int f = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if(f != -1){
+        time_t timespan = time(NULL);
+        char* timeString = ctime(&timespan);
+        timeString[strcspn(timeString, "\n")] = '\0';
+        char buffer[256];
+        int len = snprintf(buffer, sizeof(buffer), "%s || %s || %s || %s\n", timeString, input.role, input.name, action);
+        write(f, buffer, len);
+        close(f);
+    }
+}
+
+int ctrReports(){
+    char path[128];
+    snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
+
+    int f = open(path, O_RDONLY);
+    if(f == -1){
+        return 0;
+    }
+
+    off_t offset = lseek(f, -sizeof(report), SEEK_END);
+    if(offset < 0){
+        close(f);
+        return 0;
+    }
+    report lastReport;
+    read(f, &lastReport, sizeof(report));
+    close(f);
+
+    return lastReport.reportId;
 }
 
 void permissionBitsSymbols(mode_t mode, char* str){
@@ -268,21 +292,9 @@ void addRep(){
         }
     }
 
-    if(strcmp(input.role, "manager") == 0){
-        snprintf(path, sizeof(path), "%s/logged_district", input.districtId);
-        if(!checkPermission(path, 1)){
-            fprintf(stderr, "Cannot write in log, lack of permission\n");
-        } else{
-            f = fopen(path, "a");
-            if(f != NULL){
-                fprintf(f, "%lld || %s || %s || Added Report #%d\n", (long long)timestamp, input.role, input.name, newReport.reportId);
-                fclose(f);
-            } else{
-                fprintf(stderr, "Failed logged_district\n");
-                exit(1);
-            }
-        }
-    }
+    char logMsg[64];
+    snprintf(logMsg, sizeof(logMsg), "Added Report #%d", newReport.reportId);
+    logReports(logMsg);
 
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
     chmod(path, 0664);
@@ -350,13 +362,9 @@ void removeRep(){
 
     close(f);
 
-    snprintf(path, sizeof(path), "%s/logged_district", input.districtId);
-    FILE* log = fopen(path, "a");
-    if(log != NULL){
-        fprintf(log, "%lld || %s || %s || Removed Report #%d\n", (long long)time(NULL), input.role, input.name, input.reportId);
-        fclose(log);
-    }
-
+    char logMsg[64];
+    snprintf(logMsg, sizeof(logMsg), "Removed Report #%d", input.reportId);
+    logReports(logMsg);
 }
 
 void listRep(){
@@ -376,7 +384,7 @@ void listRep(){
     
     char permissionBits[10];
     permissionBitsSymbols(st.st_mode, permissionBits);
-    printf("--- DISTRIC %s FILE INFO ---\n", input.districtId);
+    printf("--- DISTRICT %s FILE INFO ---\n", input.districtId);
     printf("Permissions:        %s\n", permissionBits);
     printf("File Size:          %lld bytes\n", (long long)st.st_size);
     printf("Last Modified:      %s", ctime(&st.st_mtime));
@@ -403,6 +411,7 @@ void listRep(){
     }
     printf("----------------------------------------------------------\n");
     close(f);
+    logReports("Listed All Records");
 }
 
 void viewRep(){
@@ -430,10 +439,15 @@ void viewRep(){
             printf("Inspector:      %s\n", currReport.name);
             printf("Category:       %s\n", currReport.category);
             printf("Severity:       %d\n", currReport.severity);
-            printf("Coordonates:X:  %.2f, Y: %.2f\n", currReport.xCords, currReport.yCords);
+            printf("Coordonates:    X: %.2f, Y: %.2f\n", currReport.xCords, currReport.yCords);
             printf("Description:    %s\n", currReport.description);
             printf("Date Logged:    %s", ctime(&currReport.timestamp));
             printf("---------------------------\n");
+            
+            char logMsg[64];
+            snprintf(logMsg, sizeof(logMsg), "Viewed Report #%d", input.reportId);
+            logReports(logMsg);
+            
             break;
         }
     }
@@ -482,6 +496,78 @@ void updateRep(){
 
     write(f, buffer, len);
     close(f);
+    
+    char logMsg[64];
+    snprintf(logMsg, sizeof(logMsg), "Updated Threshold to %d", input.value);
+    logReports(logMsg);
+}
+
+int parseCondition(const char* input, char* field, char* op, char* value) {
+    // Safety check for null pointers
+    if (!input || !field || !op || !value) {
+        return 0;
+    }
+
+    // sscanf reads from the input string based on a specific format.
+    // It returns the number of successfully parsed and assigned arguments.
+    // We expect exactly 3 matches.
+    if (sscanf(input, "%[^:]:%[^:]:%[^\n]", field, op, value) == 3) {
+        return 1; // Successfully parsed all three parts
+    }
+    
+    return 0; // Parsing failed (malformed string)
+}
+
+int matchCondition(report* r, const char* field, const char* op, const char* value) {
+    // ---------------------------------------------------------
+    // 1. Integer Comparison (severity)
+    // ---------------------------------------------------------
+    if (strcmp(field, "severity") == 0) {
+        int targetValue = atoi(value); // Convert string to integer
+        
+        if (strcmp(op, "==") == 0) return r->severity == targetValue;
+        if (strcmp(op, "!=") == 0) return r->severity != targetValue;
+        if (strcmp(op, "<")  == 0) return r->severity < targetValue;
+        if (strcmp(op, "<=") == 0) return r->severity <= targetValue;
+        if (strcmp(op, ">")  == 0) return r->severity > targetValue;
+        if (strcmp(op, ">=") == 0) return r->severity >= targetValue;
+    }
+    // ---------------------------------------------------------
+    // 2. Time Comparison (timestamp)
+    // ---------------------------------------------------------
+    else if (strcmp(field, "timestamp") == 0) {
+        // time_t is usually a long integer (Unix epoch time)
+        time_t targetValue = (time_t)atol(value); 
+        
+        if (strcmp(op, "==") == 0) return r->timestamp == targetValue;
+        if (strcmp(op, "!=") == 0) return r->timestamp != targetValue;
+        if (strcmp(op, "<")  == 0) return r->timestamp < targetValue;
+        if (strcmp(op, "<=") == 0) return r->timestamp <= targetValue;
+        if (strcmp(op, ">")  == 0) return r->timestamp > targetValue;
+        if (strcmp(op, ">=") == 0) return r->timestamp >= targetValue;
+    }
+    // ---------------------------------------------------------
+    // 3. String Comparisons (category, inspector -> name)
+    // ---------------------------------------------------------
+    else if (strcmp(field, "category") == 0 || strcmp(field, "inspector") == 0) {
+        // Point to the correct struct field based on the input
+        const char* structStr = (strcmp(field, "category") == 0) ? r->category : r->name;
+        
+        // Compare the strings
+        int cmp = strcmp(structStr, value);
+        
+        if (strcmp(op, "==") == 0) return cmp == 0;
+        if (strcmp(op, "!=") == 0) return cmp != 0;
+        
+        // Technically, you can support greater/less than for alphabetizing strings
+        if (strcmp(op, "<")  == 0) return cmp < 0;
+        if (strcmp(op, "<=") == 0) return cmp <= 0;
+        if (strcmp(op, ">")  == 0) return cmp > 0;
+        if (strcmp(op, ">=") == 0) return cmp >= 0;
+    }
+
+    // Default case: Unknown field or unknown operator
+    return 0;
 }
 
 void filterRep(){
