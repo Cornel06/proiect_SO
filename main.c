@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
 #define CONDITIONS 16
@@ -657,6 +658,62 @@ void filterRep(){
     close(f);
     
     logReports("Filtered Reports");
+}
+
+int checkDist(char* dist){
+    struct stat st_dir = {0};
+    if(stat(dist, &st_dir) == -1){
+        fprintf(stderr, "Direrctory doesn't exist\n");
+        exit(1);
+    }
+
+    if(!S_ISDIR(st_dir.st_mode)){
+        fprintf(stderr, "Cannot remove district, input isn't a directory\n");
+        exit(1);
+    }
+
+    if(strchr(dist, '/') != NULL){
+        fprintf(stderr, "Access denied! Trying to leave working directory\n");
+        exit(1);
+    }
+    
+    return 1;
+}
+
+void removeDist(){
+    if(strcmp(input.role, "manager") != 0){
+        fprintf(stderr, "Access denied!\n");
+        exit(1);
+    }
+
+    char path[128];
+    snprintf(path, sizeof(path), "%s", input.districtId);
+
+    if(!checkPermission(path, 1)){
+        fprintf(stderr, "Access denied!\n");
+        exit(1);
+    }
+    
+    checkDist(path);\
+    
+    char linkPath[128];
+    snprintf(linkPath, sizeof(linkPath), "active_reports-%s", input.districtId);
+
+    unlink(linkPath);
+
+    pid_t pid = vfork();
+
+    if(pid < 0){
+        fprintf(stderr, "Failed to create process\n");
+        exit(1);
+    } else if(pid == 0){
+        if(execlp("rm", "rm", "-rf", path, NULL) == -1){
+            fprintf(stderr, "Failed to remove district\n");
+            _exit(1);
+        }
+    } else {
+        //....
+    }
 }
 
 void detectAndExecute(){
