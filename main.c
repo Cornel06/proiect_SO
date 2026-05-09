@@ -694,7 +694,7 @@ void removeDist(){
         exit(1);
     }
     
-    checkDist(path);\
+    checkDist(path);
     
     char linkPath[128];
     snprintf(linkPath, sizeof(linkPath), "active_reports-%s", input.districtId);
@@ -712,7 +712,16 @@ void removeDist(){
             _exit(1);
         }
     } else {
-        //....
+        int status;
+        waitpid(pid, &status, 0);
+
+        if(WIFEXITED(status) && WEXITSTATUS(status) == 0){
+           printf("Successfully removed district: %s\n", input.districtId); 
+        }
+        else{
+            fprintf(stderr, "Failed to remove district %s, error executing rm -rf command\n");
+            exit(1);
+        }
     }
 }
 
