@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #define CONDITIONS 16
 typedef struct args{
     char role[16];
@@ -107,6 +108,11 @@ void readArguments(int argc, char* argv[]){
             }
             i--;
             functionExists = 1;
+        } else if((strcmp(argv[i], "--remove_district") == 0 && !outOfBounds(i + 1, argc))){
+            strcpy(input.op, "remove_district");
+            strcpy(input.districtId, argv[i + 1]);
+            functionExists = 1;
+            i++;
         }
     }
     if(roleExists + userExists + functionExists != 3){
@@ -738,6 +744,8 @@ void detectAndExecute(){
         updateRep();
     } else if(strcmp(input.op, "filter") == 0){
         filterRep();
+    } else if(strcmp(input.op, "remove_district") == 0){
+        removeDist();
     }
 }
 
