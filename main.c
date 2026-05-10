@@ -330,8 +330,29 @@ void addRep(){
         }
     }
 
+    int notifyMonitor = 0;
+    int fd = open(".monitor_pid", O_RDONLY);
+    if(fd != -1){
+        char buffer[64];
+        int bytesRead = read(fd, buffer, sizeof(buffer) - 1);
+        
+        if(bytesRead > 0){
+            buffer[bytesRead] = '\0';
+            pid_t pid = atoi(buffer);
+
+            if(pid > 0 && kill(pid, SIGUSR1) == 0){
+                notifyMonitor = 1;
+            }
+        }
+        close(fd);
+    }
+
     char logMsg[64];
-    snprintf(logMsg, sizeof(logMsg), "Added Report #%d", newReport.reportId);
+    if(notifyMonitor){
+        snprintf(logMsg, sizeof(logMsg), "Added Report #%d, the monitor has been succesfully notified!", newReport.reportId);    
+    } else{
+        snprintf(logMsg, sizeof(logMsg), "Added Report #%d, the monitor has NOT been notified!", newReport.reportId);
+    }
     logReports(logMsg);
 
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
@@ -669,7 +690,7 @@ void filterRep(){
 int checkDist(char* dist){
     struct stat st_dir = {0};
     if(stat(dist, &st_dir) == -1){
-        fprintf(stderr, "Direrctory doesn't exist\n");
+        fprintf(stderr, "Directory doesn't exist\n");
         exit(1);
     }
 
@@ -725,7 +746,7 @@ void removeDist(){
            printf("Successfully removed district: %s\n", input.districtId); 
         }
         else{
-            fprintf(stderr, "Failed to remove district %s, error executing rm -rf command\n");
+            fprintf(stderr, "Failed to remove district %s, error executing rm -rf command\n", input.districtId);
             exit(1);
         }
     }
