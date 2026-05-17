@@ -48,7 +48,7 @@ void readArguments(int argc, char* argv[]){
         if((strcmp(argv[i], "--role") == 0) && !outOfBounds(i + 1, argc)){
             strcpy(input.role, argv[i + 1]);
             if(strcmp(input.role, "manager") != 0 && strcmp(input.role, "inspector") != 0){
-                fprintf(stderr, "Invalid role, you have to be either the manager or an inspector\n");
+                fprintf(stderr, "ERROR | Invalid role, you have to be either the manager or an inspector\n");
                 exit(1);
             }
             roleExists = 1;
@@ -84,7 +84,7 @@ void readArguments(int argc, char* argv[]){
             strcpy(input.districtId, argv[i + 1]);
             int val = atoi(argv[i + 2]);
             if(val < 1 || val > 3){
-                fprintf(stderr, "Value out of bounds\n");
+                fprintf(stderr, "ERROR | Value out of bounds\n");
                 exit(1);
             }
             input.value = atoi(argv[i + 2]);
@@ -99,7 +99,7 @@ void readArguments(int argc, char* argv[]){
             
             while(!outOfBounds(i, argc) && strncmp(argv[i], "--", 2) != 0){
                 if (input.conditionCtr >= CONDITIONS) {
-                    fprintf(stderr, "Too many conditions!\n");
+                    fprintf(stderr, "ERROR | Too many conditions!\n");
                     exit(1);
                 }
                 strcpy(input.condition[input.conditionCtr], argv[i]);
@@ -116,7 +116,7 @@ void readArguments(int argc, char* argv[]){
         }
     }
     if(roleExists + userExists + functionExists != 3){
-            fprintf(stderr, "Failed to read, wrong args\n");
+            fprintf(stderr, "ERROR | Failed to read, wrong args\n");
             exit(1);
     }
 }
@@ -224,7 +224,7 @@ void checkDanglingLink(){
         if(S_ISLNK(linkStat.st_mode)){
             struct stat targetStat;
             if(stat(linkPath, &targetStat) == -1){
-                fprintf(stderr, "Warning, '%s' is dangling!\n", linkPath);
+                fprintf(stderr, "WARNING | '%s' is dangling!\n", linkPath);
             }
         }
     }
@@ -238,7 +238,7 @@ void addRep(){
     
     if(stat(path, &st_dir) == -1){
         if(mkdir(path, 0750) != 0){
-            fprintf(stderr, "Failed to create directory\n");
+            fprintf(stderr, "ERROR | Failed to create directory\n");
             exit(1);
         }
         chmod(path, 0750);
@@ -275,7 +275,7 @@ void addRep(){
     printf("Severity (1/2/3): ");
     scanf("%d", &severity);
     if(severity < 1 || severity > 3){
-        fprintf(stderr, "Invalid severity\n");
+        fprintf(stderr, "ERROR | Invalid severity\n");
         return;
     }
     newReport.severity = severity;
@@ -293,7 +293,7 @@ void addRep(){
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
     
     if(!checkPermission(path, 1)){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
@@ -302,7 +302,7 @@ void addRep(){
         fwrite(&newReport, sizeof(report), 1, f);
         fclose(f);
     } else{
-        fprintf(stderr, "Failed reports.dat\n");
+        fprintf(stderr, "ERROR | Failed reports.dat\n");
         exit(1);
     }
 
@@ -314,7 +314,7 @@ void addRep(){
             fclose(f);
             chmod(path, 0640);
         } else{
-            fprintf(stderr, "Failed district.cfg\n");
+            fprintf(stderr, "ERROR | Failed district.cfg\n");
             exit(1);
         }
     }
@@ -326,7 +326,7 @@ void addRep(){
     if(lstat(linkPath, &linkStat) == -1){
         snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
         if(symlink(path, linkPath) != 0){
-            fprintf(stderr, "Failed to create symlink\n");
+            fprintf(stderr, "ERROR | Failed to create symlink\n");
         }
     }
 
@@ -365,7 +365,7 @@ void addRep(){
 
 void removeRep(){
     if(strcmp(input.role, "manager") != 0){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
@@ -373,13 +373,13 @@ void removeRep(){
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
 
     if(!checkPermission(path, 1)){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
     int f = open(path, O_RDWR);
     if(f == -1){
-        fprintf(stderr, "Failed to open file\n");
+        fprintf(stderr, "ERROR | Failed to open file\n");
         exit(1);
     }
 
@@ -398,7 +398,7 @@ void removeRep(){
     }
 
     if(!reportExists){
-        fprintf(stderr, "Report not found\n");
+        fprintf(stderr, "ERROR | Report not found\n");
         exit(1);
     }
 
@@ -416,7 +416,7 @@ void removeRep(){
     }
 
     if(ftruncate(f, writeCursor) != 0){
-        fprintf(stderr, "Failed to truncate file\n");
+        fprintf(stderr, "WARNING | Failed to truncate file\n");
     }
 
     close(f);
@@ -432,7 +432,7 @@ void listRep(){
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
     
     if(!checkPermission(path, 0)){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
@@ -480,13 +480,13 @@ void viewRep(){
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
 
     if(!checkPermission(path, 0)){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
     int f = open(path, O_RDONLY);
     if(f == -1){
-        fprintf(stderr, "Could not open reports.dat file\n");
+        fprintf(stderr, "ERROR | Could not open reports.dat file\n");
         return;
     }
 
@@ -514,14 +514,14 @@ void viewRep(){
     }
 
     if(!reportExists){
-        fprintf(stderr, "Could not find the report you are looking for\n");
+        fprintf(stderr, "WARNING | Could not find the report you are looking for\n");
     }
     close(f);
 }
 
 void updateRep(){
     if(strcmp(input.role, "manager") != 0){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
@@ -529,26 +529,26 @@ void updateRep(){
     snprintf(path, sizeof(path), "%s/district.cfg", input.districtId);
 
     if(!checkPermission(path, 1)){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
     struct stat st;
     if(stat(path, &st) == -1){
-        fprintf(stderr, "File doesn't exist\n");
+        fprintf(stderr, "ERROR | File doesn't exist\n");
         exit(1);
     }
 
     mode_t permission = st.st_mode & 0777;
 
     if(permission != 0640){
-        fprintf(stderr, "File permissions have been tampered with!\nExpected:   640\nFound:      %03o\n", permission);
+        fprintf(stderr, "ERROR | File permissions have been tampered with!\nExpected:   640\nFound:      %03o\n", permission);
         exit(1);
     }
 
     int f = open(path, O_WRONLY | O_TRUNC);
     if(f == -1){
-        fprintf(stderr, "Failed to open file\n");
+        fprintf(stderr, "ERROR | Failed to open file\n");
         exit(1);
     }
 
@@ -637,13 +637,13 @@ void filterRep(){
     snprintf(path, sizeof(path), "%s/reports.dat", input.districtId);
 
     if(!checkPermission(path, 0)){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
     int f = open(path, O_RDONLY);
     if(f == -1){
-        fprintf(stderr, "Failed to open file\n");
+        fprintf(stderr, "ERROR | Failed to open file\n");
         exit(1);
     }
 
@@ -661,7 +661,7 @@ void filterRep(){
             char value[64];
             
             if(!parseCondition(input.condition[i], field, op, value)){
-                fprintf(stderr, "Could not read conditions\n");
+                fprintf(stderr, "WARNING | Could not read conditions\n");
                 invalid = 1;
                 break;
             }
@@ -678,7 +678,7 @@ void filterRep(){
     }
 
     if(exist == 0){
-        printf("No matches\n");
+        printf("INFO | No matches\n");
     }
 
     printf("----------------------------------------------------------\n");
@@ -690,17 +690,17 @@ void filterRep(){
 int checkDist(char* dist){
     struct stat st_dir = {0};
     if(stat(dist, &st_dir) == -1){
-        fprintf(stderr, "Directory doesn't exist\n");
+        fprintf(stderr, "ERROR | Directory doesn't exist\n");
         exit(1);
     }
 
     if(!S_ISDIR(st_dir.st_mode)){
-        fprintf(stderr, "Cannot remove district, input isn't a directory\n");
+        fprintf(stderr, "ERROR | Cannot remove district, input isn't a directory\n");
         exit(1);
     }
 
     if(strchr(dist, '/') != NULL){
-        fprintf(stderr, "Access denied! Trying to leave working directory\n");
+        fprintf(stderr, "ERROR | Access denied! Trying to leave working directory\n");
         exit(1);
     }
     
@@ -709,7 +709,7 @@ int checkDist(char* dist){
 
 void removeDist(){
     if(strcmp(input.role, "manager") != 0){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
 
@@ -717,7 +717,7 @@ void removeDist(){
     snprintf(path, sizeof(path), "%s", input.districtId);
 
     if(!checkPermission(path, 1)){
-        fprintf(stderr, "Access denied!\n");
+        fprintf(stderr, "ERROR | Access denied!\n");
         exit(1);
     }
     
@@ -731,11 +731,11 @@ void removeDist(){
     pid_t pid = vfork();
 
     if(pid < 0){
-        fprintf(stderr, "Failed to create process\n");
+        fprintf(stderr, "ERROR | Failed to create process\n");
         exit(1);
     } else if(pid == 0){
         if(execlp("rm", "rm", "-rf", path, NULL) == -1){
-            fprintf(stderr, "Failed to remove district\n");
+            fprintf(stderr, "ERROR | Failed to remove district\n");
             _exit(1);
         }
     } else {
@@ -743,10 +743,10 @@ void removeDist(){
         waitpid(pid, &status, 0);
 
         if(WIFEXITED(status) && WEXITSTATUS(status) == 0){
-           printf("Successfully removed district: %s\n", input.districtId); 
+           printf("INFO | Successfully removed district: %s\n", input.districtId); 
         }
         else{
-            fprintf(stderr, "Failed to remove district %s, error executing rm -rf command\n", input.districtId);
+            fprintf(stderr, "ERROR | Failed to remove district %s, error executing rm -rf command\n", input.districtId);
             exit(1);
         }
     }
@@ -772,7 +772,7 @@ void detectAndExecute(){
 
 int main(int argc, char* argv[]){
     if(argc < 5){
-        fprintf(stderr, "Not enough args\n");
+        fprintf(stderr, "ERROR | Not enough args\n");
         exit(1);
     }
 
